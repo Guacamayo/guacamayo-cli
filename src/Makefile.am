@@ -1,9 +1,9 @@
 
 AM_CFLAGS = $(CLI_CFLAGS)
 
-bin_PROGRAMS=guaca-cli
+bin_PROGRAMS=guacamayo-cli
 
-guaca_cli_SOURCES =	main.c						\
+guacamayo_cli_SOURCES =	main.c						\
 			hostname.c hostname.h				\
 			timezone.c timezone.h				\
 			connman.c  connman.h				\
@@ -11,6 +11,6 @@ guaca_cli_SOURCES =	main.c						\
 			mtn-connman-service.c mtn-connman-service.h
 
 
-guaca_cli_LDADD   = $(CLI_LIBS)
+guacamayo_cli_LDADD   = $(CLI_LIBS)
 
 DISTCLEANFILES = *~ Makefile.in
