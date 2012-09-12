@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <glib.h>
 
+#include "main.h"
 #include "hostname.h"
 
 gboolean
@@ -49,11 +50,11 @@ set_hostname (char *line)
 
       if (gethostname (buf, sizeof(buf)))
         {
-          g_print ("Failed to get hostname: %s\n", strerror (errno));
+          output ("Failed to get hostname: %s\n", strerror (errno));
           return FALSE;
         }
 
-      g_print ("Hostname: %s\n", buf);
+      output ("Hostname: %s\n", buf);
       return TRUE;
     }
 
@@ -71,7 +72,7 @@ set_hostname (char *line)
 
   if (sethostname (n, j))
     {
-      g_print ("Failed to set hostname to '%s': %s\n", n, strerror (errno));
+      output ("Failed to set hostname to '%s': %s\n", n, strerror (errno));
       retval = FALSE;
     }
   else
@@ -82,18 +83,18 @@ set_hostname (char *line)
        * The change made by sethostname() is not persistent, since at bootime
        * the hostname is read from /etc/hostname, so fix that too.
        */
-      g_print ("Host name set to '%s'\n", n);
+      output ("Host name set to '%s'\n", n);
 
       if (!(f = fopen ("/etc/hostname", "w")))
         {
-          g_print ("Failed to set save hostname: %s\n", strerror (errno));
+          output ("Failed to set save hostname: %s\n", strerror (errno));
           retval = FALSE;
         }
       else
         {
           if (fwrite (n, j, 1, f) != 1)
             {
-              g_print ("Failed to set save hostname: %s\n", strerror (errno));
+              output ("Failed to set save hostname: %s\n", strerror (errno));
               retval = FALSE;
             }
 

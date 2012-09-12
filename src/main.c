@@ -18,6 +18,7 @@
 #include "config.h"
 #endif
 
+#include <stdarg.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,14 +36,34 @@
 #define GUACAMAYO_DISTRO_STRING "Guacamayo"
 #endif
 
+#include "main.h"
 #include "hostname.h"
 #include "timezone.h"
 #include "connman.h"
+#include "vtmanager.h"
 
-static gboolean print_help (char *line);
-static gboolean shutdown (char *line);
+static FILE     *out = NULL;
+static FILE     *in  = NULL;
+static gboolean  print_help (char *line);
+static gboolean  shutdown (char *line);
+static char     *history_file = NULL;
 
 typedef gboolean (*GuacaCmdFunc) (char *);
+
+void
+output (const char *fmt, ...)
+{
+  va_list args;
+
+  va_start (args, fmt);
+
+  if (out)
+    vfprintf (out, fmt, args);
+  else
+    vfprintf (stdout, fmt, args);
+
+  va_end (args);
+}
 
 typedef struct
 {
@@ -92,21 +113,21 @@ print_help (char *line)
       snprintf (fmt_str, sizeof(fmt_str), "    %%-%ds: %%s\n", max_len);
     }
 
-  g_print ("Available Commands:\n\n");
+  output ("Available Commands:\n\n");
 
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
     {
       if (cmds[i].args)
         {
           char *t = g_strdup_printf ("%s %s", cmds[i].cmd, cmds[i].args);
-          g_printf (fmt_str, t, cmds[i].help);
+          output (fmt_str, t, cmds[i].help);
           g_free (t);
         }
       else
-        g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
+        output (fmt_str, cmds[i].cmd, cmds[i].help);
     }
 
-  g_print ("\n");
+  output ("\n");
 
   return TRUE;
 }
@@ -126,7 +147,7 @@ shutdown (char *line)
 
   if (!g_spawn_command_line_async (cmdline, &error))
     {
-      g_print ("Failed to execute '%s': %s\n", cmdline, error->message);
+      output ("Failed to execute '%s': %s\n", cmdline, error->message);
       g_clear_error (&error);
       retval = FALSE;
     }
@@ -150,6 +171,8 @@ parse_line (char *line)
     case 'q':
       return TRUE;
 #endif
+    case 0:
+      /* print help on empty lines */
     case '?':
       print_help (line);
       return FALSE;
@@ -212,17 +235,77 @@ guaca_completion (const char *text, int start, int end)
   return m;
 }
 
+static void
+signal_handler (int sig)
+{
+  switch (sig)
+    {
+    case SIGINT:
+      return;
+    default:
+      break;
+
+    case SIGABRT:
+    case SIGSEGV:
+    case SIGTERM:
+      /* Try to release the VT if at all possible */
+      if (out)
+        fclose (out);
+
+      if (in)
+        fclose (in);
+
+      vtmanager_deinit ();
+
+      if (history_file)
+        write_history (history_file);
+    }
+
+  exit (sig);
+}
+
 int
 main (int argc, char **argv)
 {
   int               rows, cols;
   const char       *home;
-  char             *history_file = NULL;
   char             *line;
+  const char       *tty;
+  struct sigaction  sa;
+
+  sigfillset(&sa.sa_mask);
+  sa.sa_handler = signal_handler;
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGABRT, &sa, NULL);
+  sigaction(SIGINT, &sa, NULL);
+
+  tty = vtmanager_init ();
+  vtmanager_activate ();
 
   g_type_init ();
 
   rl_initialize();
+
+  if (tty)
+    {
+      if ((out = fopen (tty, "w")))
+        {
+          if (rl_outstream)
+            fclose (rl_outstream);
+
+          rl_outstream = out;
+        }
+
+      if ((in = fopen (tty, "r")))
+        {
+          if (rl_instream)
+            fclose (rl_instream);
+
+          rl_instream = in;
+        }
+    }
+
   rl_attempted_completion_function = guaca_completion;
   rl_get_screen_size (&rows, &cols);
 
@@ -234,7 +317,8 @@ main (int argc, char **argv)
       read_history (history_file);
     }
 
-  g_print ("Welcome to " GUACAMAYO_DISTRO_STRING "\n");
+  output ("Welcome to " GUACAMAYO_DISTRO_STRING "\n\n");
+  print_help (NULL);
 
   while ((line = readline (": ")))
     {
@@ -244,7 +328,17 @@ main (int argc, char **argv)
       free (line);
     }
 
-  write_history (history_file);
+  if (history_file)
+    write_history (history_file);
+
   g_free (history_file);
+
+  if (out)
+    fclose (out);
+
+  if (in)
+    fclose (in);
+
+  vtmanager_deinit ();
 }
 

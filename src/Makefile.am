@@ -8,7 +8,8 @@ guacamayo_cli_SOURCES =	main.c						\
 			timezone.c timezone.h				\
 			connman.c  connman.h				\
 			mtn-connman.c mtn-connman.h			\
-			mtn-connman-service.c mtn-connman-service.h
+			mtn-connman-service.c mtn-connman-service.h	\
+			vtmanager.c vtmanager.h
 
 
 guacamayo_cli_LDADD   = $(CLI_LIBS)

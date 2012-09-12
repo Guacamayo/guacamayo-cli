@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <readline/readline.h>
 
+#include "main.h"
 #include "timezone.h"
 
 #define PROMPT "timezone> "
@@ -187,7 +188,7 @@ write_timezone (const char *zone)
 
   if (stat (path, &st) < 0)
     {
-      g_print ("Failed to stat '%s': %s\n", zone, strerror (errno));
+      output ("Failed to stat '%s': %s\n", zone, strerror (errno));
       retval = FALSE;
       goto finish;
     }
@@ -198,14 +199,14 @@ write_timezone (const char *zone)
     }
   else
     {
-      g_print ("Failed to open /etc/timezone: %s\n", strerror (errno));
+      output ("Failed to open /etc/timezone: %s\n", strerror (errno));
       retval = FALSE;
       goto finish;
     }
 
   if (unlink ("/etc/localtime"))
     {
-      g_print ("Failed to unlink localtime: %s\n", strerror (errno));
+      output ("Failed to unlink localtime: %s\n", strerror (errno));
       retval = FALSE;
       goto finish;
     }
@@ -213,7 +214,7 @@ write_timezone (const char *zone)
 
   if (symlink (path, "/etc/localtime"))
     {
-      g_print ("Failed to symlink local time: %s\n", strerror (errno));
+      output ("Failed to symlink local time: %s\n", strerror (errno));
       retval = FALSE;
       goto finish;
     }
@@ -246,10 +247,10 @@ set_timezone (char *line)
     {
       const char *region = l->data;
 
-      g_print (PROMPT "    %d: %s\n", i, region);
+      output (PROMPT "    %d: %s\n", i, region);
     }
 
-  g_print (PROMPT "\n" PROMPT "Select regions [1-%d]\n", i-1);
+  output (PROMPT "\n" PROMPT "Select regions [1-%d]\n", i-1);
 
   if (!(sel = readline (PROMPT "? ")))
     {
@@ -275,10 +276,10 @@ set_timezone (char *line)
     {
       e = l->data;
 
-      g_print (PROMPT "    %d: %s, %s\n", i, e->country, e->city);
+      output (PROMPT "    %d: %s, %s\n", i, e->country, e->city);
     }
 
-  g_print (PROMPT "\n" PROMPT "Select city [1-%d]\n", i-1);
+  output (PROMPT "\n" PROMPT "Select city [1-%d]\n", i-1);
 
   if (!(sel = readline (PROMPT "? ")))
     {

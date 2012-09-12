@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <readline/readline.h>
 
+#include "main.h"
 #include "connman.h"
 #include "connman-agent-introspection.h"
 #include "mtn-connman.h"
@@ -98,7 +99,7 @@ submit_passphrase (ConnmanData *d)
   if (d->agent_field_mask & MTN_CONNMAN_FIELD_USERNAME_MASK)
     if (!(name = readline (PROMPT "Enter username: ")) || !*name)
       {
-        g_print (PROMPT "User name is required!\n");
+        output (PROMPT "User name is required!\n");
         d->cancelled = TRUE;
         g_dbus_method_invocation_return_dbus_error (invocation,
                                            "net.connman.Agent.Error.Canceled",
@@ -110,7 +111,7 @@ submit_passphrase (ConnmanData *d)
   if (d->agent_field_mask & MTN_CONNMAN_FIELD_PASSWORD_MASK)
     if (!(pass = readline (PROMPT "Enter passphrase: ")) || !*pass)
       {
-        g_print (PROMPT "Passphrase is required!\n");
+        output (PROMPT "Passphrase is required!\n");
         d->cancelled = TRUE;
         g_dbus_method_invocation_return_dbus_error (invocation,
                                            "net.connman.Agent.Error.Canceled",
@@ -168,7 +169,7 @@ agent_method_cb (GDBusConnection       *connection,
      const char *msg;
 
      g_variant_get (parameters, "(os)", &object, &msg);
-     g_print (PROMPT "Error: '%s'\n", msg);
+     output (PROMPT "Error: '%s'\n", msg);
 
      g_dbus_method_invocation_return_value (invocation, NULL);
    }
@@ -211,7 +212,7 @@ agent_method_cb (GDBusConnection       *connection,
 
      if (d->agent_input_invocation)
        {
-         g_print (PROMPT "Warning: RequestInput already in progress!\n");
+         output (PROMPT "Warning: RequestInput already in progress!\n");
          g_object_unref (d->agent_input_invocation);
        }
 
@@ -222,7 +223,7 @@ agent_method_cb (GDBusConnection       *connection,
    }
  else
    {
-     g_print (PROMPT "Warning method '%s' not implemented\n", method_name);
+     output (PROMPT "Warning method '%s' not implemented\n", method_name);
      g_dbus_method_invocation_return_value (invocation, NULL);
    }
 }
@@ -246,12 +247,12 @@ register_agent_cb (GObject *object, GAsyncResult *res, gpointer data)
 
   if (error)
     {
-      g_print (PROMPT "error: %s.", error->message);
+      output (PROMPT "error: %s.", error->message);
       g_error_free (error);
       return;
     }
 
-  g_print ("done.\n");
+  output ("done.\n");
   d->agent_registered = TRUE;
 
   if ((var = mtn_connman_get_services (d->connman)))
@@ -306,15 +307,15 @@ register_agent_cb (GObject *object, GAsyncResult *res, gpointer data)
       const char *key;
       gboolean    quit = FALSE;
 
-      g_print (PROMPT "Available networks:\n" PROMPT "\n");
+      output (PROMPT "Available networks:\n" PROMPT "\n");
 
       keys = g_hash_table_get_keys (d->services);
       for (i = 0, l = keys; l; l = l->next, i++)
         {
-          g_print (PROMPT "    %d: %s\n", i+1, (char*)l->data);
+          output (PROMPT "    %d: %s\n", i+1, (char*)l->data);
         }
 
-      g_print (PROMPT "\n" PROMPT "Select wifi [1-%d]:\n", i);
+      output (PROMPT "\n" PROMPT "Select wifi [1-%d]:\n", i);
 
       if ((sel = readline (PROMPT "? ")))
         {
@@ -349,12 +350,12 @@ agent_bus_acquired (GObject      *source_object,
 
   if (error)
     {
-      g_print (PROMPT "error: %s\n", error->message);
+      output (PROMPT "error: %s\n", error->message);
       g_error_free (error);
       return;
     }
   else
-    g_print ("done.\nwifi> Registering agent ... ");
+    output ("done.\nwifi> Registering agent ... ");
 
   d->object_id =
     g_dbus_connection_register_object (d->connection,
@@ -367,7 +368,7 @@ agent_bus_acquired (GObject      *source_object,
 
   if (error)
     {
-      g_print ("failed: %s\n", error->message);
+      output ("failed: %s\n", error->message);
       g_error_free (error);
     }
   else if (d->connman && !d->agent_submitted)
@@ -403,7 +404,7 @@ register_agent (ConnmanData *d)
       g_clear_error (&error);
     }
 
-  g_print (PROMPT "Connecting to DBus ... ");
+  output (PROMPT "Connecting to DBus ... ");
   g_bus_get (G_BUS_TYPE_SYSTEM, NULL, agent_bus_acquired, d);
 }
 
@@ -417,7 +418,7 @@ connman_new_cb (GObject *object, GAsyncResult *res, gpointer data)
   d->connman = mtn_connman_new_finish (res, &error);
   if (!d->connman)
     {
-      g_print (PROMPT "Connman proxy: %s\n", error->message);
+      output (PROMPT "Connman proxy: %s\n", error->message);
       g_error_free (error);
       return;
     }
@@ -442,19 +443,19 @@ service_state_changed_cb (MtnConnmanService *service,
 
   if (!g_strcmp0 (val, "online"))
     {
-      g_print (PROMPT "Online.\n");
+      output (PROMPT "Online.\n");
     }
   else if (!g_strcmp0 (val, "ready"))
     {
-      g_print (PROMPT "Connected.\n");
+      output (PROMPT "Connected.\n");
     }
   else if (!g_strcmp0 (val, "failure"))
     {
-      g_print (PROMPT "Connection failed.\n");
+      output (PROMPT "Connection failed.\n");
     }
   else if (!g_strcmp0 (val, "disconnect"))
     {
-      g_print (PROMPT "Disconnected\n");
+      output (PROMPT "Disconnected\n");
     }
 
   g_main_loop_quit (d->loop);
@@ -494,20 +495,20 @@ connect_cb (GObject *object, GAsyncResult *res, gpointer data)
     {
       if (is_connman_error (error, "AlreadyConnected"))
         {
-          g_print (PROMPT "Already connected.\n");
+          output (PROMPT "Already connected.\n");
         }
       else if (is_connman_error (error, "InProgress"))
         {
-          g_print (PROMPT "Connection in progress.\n");
+          output (PROMPT "Connection in progress.\n");
         }
       else if (is_connman_error (error, "InvalidArguments"))
         {
           if (!d->cancelled)
-            g_print (PROMPT "Connection failed: %s.\n", error->message);
+            output (PROMPT "Connection failed: %s.\n", error->message);
         }
       else
         {
-          g_print (PROMPT "Connection failed: %s.\n", error->message);
+          output (PROMPT "Connection failed: %s.\n", error->message);
         }
 
       g_error_free (error);
@@ -522,7 +523,7 @@ connman_service_new_cb (GObject *object, GAsyncResult *res, gpointer data)
 
   if (!(d->service = mtn_connman_service_new_finish (res, &error)))
     {
-      g_print (PROMPT "Failed to connect: %s\n", error->message);
+      output (PROMPT "Failed to connect: %s\n", error->message);
       g_error_free (error);
 
       return;
@@ -536,7 +537,7 @@ connman_service_new_cb (GObject *object, GAsyncResult *res, gpointer data)
                      G_DBUS_CALL_FLAGS_NONE, 120000, NULL,
                      connect_cb, d);
 
-  g_print (PROMPT "Connecting ... \n");
+  output (PROMPT "Connecting ... \n");
 }
 
 static void
