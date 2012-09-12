@@ -39,6 +39,7 @@
 #include "timezone.h"
 
 static gboolean print_help (char *line);
+static gboolean shutdown (char *line);
 
 typedef gboolean (*GuacaCmdFunc) (char *);
 
@@ -57,6 +58,8 @@ static GuacaCmd cmds[] =
 #ifdef DEBUG
   {"quit",      "Quit",               NULL},
 #endif
+  {"reboot",    "Reboot",             shutdown},
+  {"shutdown",  "Shutdown",           shutdown},
   {"timezone",  "Set timezone",       set_timezone},
 };
 
@@ -82,6 +85,30 @@ print_help (char *line)
     g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
 
   return TRUE;
+}
+
+static gboolean
+shutdown (char *line)
+{
+  const char *param = "-r";
+  char       *cmdline;
+  GError     *error = NULL;
+  gboolean    retval = TRUE;
+
+  if (!strncmp (line, "shutdown", strlen ("shutdown")))
+    param = "-h";
+
+  cmdline = g_strdup_printf ("/sbin/shutdown %s now", param);
+
+  if (!g_spawn_command_line_async (cmdline, &error))
+    {
+      g_print ("Failed to execute '%s': %s\n", cmdline, error->message);
+      g_clear_error (&error);
+      retval = FALSE;
+    }
+
+  g_free (cmdline);
+  return retval;
 }
 
 static gboolean
