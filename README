@@ -1,1 +1,4 @@
-Guacamayo console shell.
+Guacamayo console shell
+
+Simle shell allowing to set host name, change time zone, and connect to
+wifi (via connman).
