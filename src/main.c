@@ -50,17 +50,20 @@ typedef struct
   GuacaCmdFunc  func;
 } GuacaCmd;
 
+/*
+ * Keep sorted !!!
+ */
 static GuacaCmd cmds[] =
 {
-  {"?",         "Print help message", print_help},
-  {"help",      "Print help message", print_help},
-  {"hostname",  "Get/set host name",  set_hostname},
+  {"?",                    "Print help message", print_help},
+  {"help",                 "Print help message", print_help},
+  {"hostname [new name]",  "Get/set host name",  set_hostname},
 #ifdef DEBUG
-  {"quit",      "Quit",               NULL},
+  {"quit",                 "Quit",               NULL},
 #endif
-  {"reboot",    "Reboot",             shutdown},
-  {"shutdown",  "Shutdown",           shutdown},
-  {"timezone",  "Set timezone",       set_timezone},
+  {"reboot",               "Reboot",             shutdown},
+  {"shutdown",             "Shutdown",           shutdown},
+  {"timezone",             "Set timezone",       set_timezone},
 };
 
 static gboolean
@@ -76,13 +79,15 @@ print_help (char *line)
       for (i = 0; i < G_N_ELEMENTS (cmds); i++)
         max_len = MAX (max_len, strlen (cmds[i].cmd));
 
-      snprintf (fmt_str, sizeof(fmt_str), "%%-%ds: %%s\n", max_len);
+      snprintf (fmt_str, sizeof(fmt_str), "    %%-%ds: %%s\n", max_len);
     }
 
   g_print ("Available Commands:\n\n");
 
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
     g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
+
+  g_print ("\n");
 
   return TRUE;
 }
@@ -128,7 +133,7 @@ parse_line (char *line)
 #endif
     case '?':
       print_help (line);
-      break;
+      return FALSE;
     default:;
     }
 
