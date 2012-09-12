@@ -23,6 +23,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <errno.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <glib.h>
@@ -33,16 +35,95 @@
 #define GUACAMAYO_DISTRO_STRING "Guacamayo"
 #endif
 
-static void
+static gboolean
 print_help (void)
 {
   g_print ("Available Commands:\n\n"
-           "  help: print this help message\n"
-           "     ?: same as help\n"
+           "  hostname: get/set host name\n"
 #ifdef DEBUG
-           "  quit: quit client\n"
+           "  quit    : quit client\n"
 #endif
+           "  help    : print this help message\n"
+           "     ?    : same as help\n"
            );
+
+  return TRUE;
+}
+
+static gboolean
+set_hostname (char *line)
+{
+  gboolean retval = TRUE;
+  char *p = line;
+  char *n;
+  int   i, j, len;
+
+  /* skip command and any traling space */
+  while (*p && !isspace (*p))
+    p++;
+
+  while (*p && isspace (*p))
+    p++;
+
+  if (!*p)
+    {
+      char buf[256];
+
+      if (gethostname (buf, sizeof(buf)))
+        {
+          g_print ("Failed to get hostname: %s\n", strerror (errno));
+          return FALSE;
+        }
+
+      g_print ("Hostname: %s\n", buf);
+      return TRUE;
+    }
+
+  n = g_strstrip (p);
+
+  /*
+   * Strip control chars
+   */
+  len = strlen (n);
+  for (i = 0, j = 0; i < len; i++)
+    if (n[i] >= ' ')
+      n[j++] = n[i];
+
+  n[j] = 0;
+
+  if (sethostname (n, j))
+    {
+      g_print ("Failed to set hostname to '%s': %s\n", n, strerror (errno));
+      retval = FALSE;
+    }
+  else
+    {
+      FILE *f;
+
+      /*
+       * The change made by sethostname() is not persistent, since at bootime
+       * the hostname is read from /etc/hostname, so fix that too.
+       */
+      g_print ("Host name set to '%s'\n", n);
+
+      if (!(f = fopen ("/etc/hostname", "w")))
+        {
+          g_print ("Failed to set save hostname: %s\n", strerror (errno));
+          retval = FALSE;
+        }
+      else
+        {
+          if (fwrite (n, j, 1, f) != 1)
+            {
+              g_print ("Failed to set save hostname: %s\n", strerror (errno));
+              retval = FALSE;
+            }
+
+          fclose (f);
+        }
+    }
+
+  return retval;
 }
 
 static gboolean
@@ -51,6 +132,7 @@ parse_line (char *line)
   char   *l = g_strstrip (line);
   char   *p = l;
   size_t  n = -1;
+  gboolean success = FALSE;
 
   switch (*l)
     {
@@ -72,20 +154,27 @@ parse_line (char *line)
 
   if (!strncmp ("help", line, n))
     {
-      print_help ();
+      success = print_help ();
     }
-
-  /* remove duplicates from history */
-  if (history_search_prefix (line, -1) >= 0)
+  else if (!strncmp ("hostname", line, n))
     {
-      int          pos = where_history ();
-      HIST_ENTRY * e;
-
-      if ((e = remove_history (pos)))
-        free_history_entry (e);
+      success = set_hostname (line);
     }
 
-  add_history (line);
+  if (success)
+    {
+      /* remove duplicates from history */
+      if (history_search_prefix (line, -1) >= 0)
+        {
+          int          pos = where_history ();
+          HIST_ENTRY * e;
+
+          if ((e = remove_history (pos)))
+            free_history_entry (e);
+        }
+
+      add_history (line);
+    }
 
   return FALSE;
 }
