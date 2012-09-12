@@ -235,7 +235,7 @@ set_timezone (char *line)
   GHashTable *regions_tbl;
   GList      *keys, *l, *r;
   int         i;
-  char       *sel;
+  char       *sel = NULL;
   const char *key;
   TzEntry    *e;
 
@@ -281,6 +281,8 @@ set_timezone (char *line)
 
   output (PROMPT "\n" PROMPT "Select city [1-%d]\n", i-1);
 
+  free (sel);
+
   if (!(sel = readline (PROMPT "? ")))
     {
       retval = TRUE;
@@ -298,6 +300,9 @@ set_timezone (char *line)
   retval = write_timezone (e->zone);
 
  finish:
+  if (sel)
+    free (sel);
+
   g_list_free (keys);
 
   return retval;
