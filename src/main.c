@@ -46,6 +46,7 @@ typedef gboolean (*GuacaCmdFunc) (char *);
 typedef struct
 {
   const char   *cmd;
+  const char   *args;
   const char   *help;
   GuacaCmdFunc  func;
 } GuacaCmd;
@@ -55,15 +56,15 @@ typedef struct
  */
 static GuacaCmd cmds[] =
 {
-  {"?",                    "Print help message", print_help},
-  {"help",                 "Print help message", print_help},
-  {"hostname [new name]",  "Get/set host name",  set_hostname},
+  {"?",        NULL,         "Print help message", print_help},
+  {"help",     NULL,         "Print help message", print_help},
+  {"hostname", "[new name]", "Get/set host name",  set_hostname},
 #ifdef DEBUG
-  {"quit",                 "Quit",               NULL},
+  {"quit",     NULL,         "Quit",               NULL},
 #endif
-  {"reboot",               "Reboot",             shutdown},
-  {"shutdown",             "Shutdown",           shutdown},
-  {"timezone",             "Set timezone",       set_timezone},
+  {"reboot",   NULL,         "Reboot",             shutdown},
+  {"shutdown", NULL,         "Shutdown",           shutdown},
+  {"timezone", NULL,         "Set timezone",       set_timezone},
 };
 
 static gboolean
@@ -77,7 +78,14 @@ print_help (char *line)
     {
 
       for (i = 0; i < G_N_ELEMENTS (cmds); i++)
-        max_len = MAX (max_len, strlen (cmds[i].cmd));
+        {
+          int len = strlen (cmds[i].cmd);
+
+          if (cmds[i].args)
+            len += (strlen (cmds[i].args) + 1);
+
+          max_len = MAX (max_len, len);
+        }
 
       snprintf (fmt_str, sizeof(fmt_str), "    %%-%ds: %%s\n", max_len);
     }
@@ -85,7 +93,16 @@ print_help (char *line)
   g_print ("Available Commands:\n\n");
 
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
-    g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
+    {
+      if (cmds[i].args)
+        {
+          char *t = g_strdup_printf ("%s %s", cmds[i].cmd, cmds[i].args);
+          g_printf (fmt_str, t, cmds[i].help);
+          g_free (t);
+        }
+      else
+        g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
+    }
 
   g_print ("\n");
 
