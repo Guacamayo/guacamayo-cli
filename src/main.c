@@ -36,6 +36,7 @@
 #endif
 
 #include "hostname.h"
+#include "timezone.h"
 
 static gboolean print_help (char *line);
 
@@ -54,8 +55,9 @@ static GuacaCmd cmds[] =
   {"help",      "Print help message", print_help},
   {"hostname",  "Get/set host name",  set_hostname},
 #ifdef DEBUG
-  {"quit",      "Quit", NULL}
+  {"quit",      "Quit",               NULL},
 #endif
+  {"timezone",  "Set timezone",       set_timezone},
 };
 
 static gboolean
@@ -89,6 +91,7 @@ parse_line (char *line)
   char   *p = l;
   size_t  n = -1;
   gboolean success = FALSE;
+  int     i;
 
   switch (*l)
     {
@@ -107,15 +110,12 @@ parse_line (char *line)
 
   n = p - l;
 
-
-  if (!strncmp ("help", line, n))
-    {
-      success = print_help (line);
-    }
-  else if (!strncmp ("hostname", line, n))
-    {
-      success = set_hostname (line);
-    }
+  for (i = 0; i < G_N_ELEMENTS (cmds); i++)
+    if (!strncmp (cmds[i].cmd, line, n))
+      {
+        success = cmds[i].func (line);
+        break;
+      }
 
   if (success)
     {
