@@ -32,7 +32,7 @@ AC_HEADER_STDC
 
 AC_CHECK_HEADERS_ONCE([guacamayo-version.h])
 
-modules="glib-2.0"
+modules="glib-2.0 gio-2.0"
 
 PKG_CHECK_MODULES(CLI, "$modules")
 

@@ -37,6 +37,7 @@
 
 #include "hostname.h"
 #include "timezone.h"
+#include "connman.h"
 
 static gboolean print_help (char *line);
 static gboolean shutdown (char *line);
@@ -65,6 +66,7 @@ static GuacaCmd cmds[] =
   {"reboot",   NULL,         "Reboot",             shutdown},
   {"shutdown", NULL,         "Shutdown",           shutdown},
   {"timezone", NULL,         "Set timezone",       set_timezone},
+  {"wifi",     NULL,         "Connect to wifi",    setup_wifi},
 };
 
 static gboolean
@@ -217,6 +219,8 @@ main (int argc, char **argv)
   const char       *home;
   char             *history_file = NULL;
   char             *line;
+
+  g_type_init ();
 
   rl_initialize();
   rl_attempted_completion_function = guaca_completion;
