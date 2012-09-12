@@ -35,17 +35,48 @@
 #define GUACAMAYO_DISTRO_STRING "Guacamayo"
 #endif
 
-static gboolean
-print_help (void)
+static gboolean print_help (char *line);
+static gboolean set_hostname (char *line);
+
+typedef gboolean (*GuacaCmdFunc) (char *);
+
+typedef struct
 {
-  g_print ("Available Commands:\n\n"
-           "  hostname: get/set host name\n"
+  const char   *cmd;
+  const char   *help;
+  GuacaCmdFunc  func;
+} GuacaCmd;
+
+static GuacaCmd cmds[] =
+{
+  {"?",         "Print help message", print_help},
+  {"help",      "Print help message", print_help},
+  {"hostname",  "Get/set host name",  set_hostname},
 #ifdef DEBUG
-           "  quit    : quit client\n"
+  {"quit",      "Quit", NULL}
 #endif
-           "  help    : print this help message\n"
-           "     ?    : same as help\n"
-           );
+};
+
+static gboolean
+print_help (char *line)
+{
+  int i;
+  static char fmt_str[20];
+  static int max_len = 0;
+
+  if (!max_len)
+    {
+
+      for (i = 0; i < G_N_ELEMENTS (cmds); i++)
+        max_len = MAX (max_len, strlen (cmds[i].cmd));
+
+      snprintf (fmt_str, sizeof(fmt_str), "%%-%ds: %%s\n", max_len);
+    }
+
+  g_print ("Available Commands:\n\n");
+
+  for (i = 0; i < G_N_ELEMENTS (cmds); i++)
+    g_printf (fmt_str, cmds[i].cmd, cmds[i].help);
 
   return TRUE;
 }
@@ -141,7 +172,7 @@ parse_line (char *line)
       return TRUE;
 #endif
     case '?':
-      print_help();
+      print_help (line);
       break;
     default:;
     }
@@ -154,7 +185,7 @@ parse_line (char *line)
 
   if (!strncmp ("help", line, n))
     {
-      success = print_help ();
+      success = print_help (line);
     }
   else if (!strncmp ("hostname", line, n))
     {
@@ -179,6 +210,32 @@ parse_line (char *line)
   return FALSE;
 }
 
+static char *
+command_match (const char *text, int state)
+{
+  static int i = 0;
+
+  if (!state)
+    i = 0;
+
+  for (; i < G_N_ELEMENTS (cmds); i++)
+    if (!strncmp (text, cmds[i].cmd, strlen (text)))
+      return strdup (cmds[i++].cmd);
+
+  return NULL;
+}
+
+static char **
+guaca_completion (const char *text, int start, int end)
+{
+  char **m = NULL;
+
+  if (start == 0)
+    m = rl_completion_matches (text, command_match);
+
+  return m;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -188,6 +245,7 @@ main (int argc, char **argv)
   char             *line;
 
   rl_initialize();
+  rl_attempted_completion_function = guaca_completion;
   rl_get_screen_size (&rows, &cols);
 
   if ((home = getenv ("HOME")))
