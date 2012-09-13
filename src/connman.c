@@ -306,14 +306,79 @@ register_agent_cb (GObject *object, GAsyncResult *res, gpointer data)
       char       *sel;
       const char *key;
       gboolean    quit = FALSE;
+      int         max_len = 0;
+      char       *fmt;
 
       output (PROMPT "Available networks:\n" PROMPT "\n");
 
       keys = g_hash_table_get_keys (d->services);
+
       for (i = 0, l = keys; l; l = l->next, i++)
         {
-          output (PROMPT "    %d: %s\n", i+1, (char*)l->data);
+          const char *k = l->data;
+
+          max_len = MAX (max_len, strlen (k));
         }
+
+      fmt = g_strdup_printf (PROMPT "    %%d: %%s%%-%ds %%s\n", max_len);
+
+      for (i = 0, l = keys; l; l = l->next, i++)
+        {
+          /* construct a line reflecting status and security of the service */
+          const char *k     = l->data;
+          GHashTable *p     = g_hash_table_lookup (d->services, k);
+          GVariant   *v     = g_hash_table_lookup (p, "State");
+          const char *state = " ";
+          char       *sec   = NULL;
+
+          if (v)
+            {
+              const char *st = g_variant_get_string (v, NULL);
+
+              if (!g_strcmp0 (st, "ready") || !g_strcmp0 (st, "online"))
+                state = "*";
+            }
+
+          if ((v = g_hash_table_lookup (p, "Security")))
+            {
+              GVariantIter *it;
+              char         *s;
+
+              g_variant_get (v, "as", &it);
+              while (g_variant_iter_next (it, "s", &s))
+                {
+                  if (!g_strcmp0 (s, "none"))
+                    ;
+                  else if (sec)
+                    {
+                      char *t = g_strconcat (sec, ", ", s, NULL);
+
+                      g_free (sec);
+                      sec = t;
+                    }
+                  else
+                    sec = g_strconcat ("[", s, NULL);
+
+                  g_free (s);
+                }
+
+              g_variant_iter_free (it);
+            }
+
+          if (!sec)
+            sec = g_strdup ("");
+          else
+            {
+              char *t = g_strconcat (sec, "]", NULL);
+              g_free (sec);
+              sec = t;
+            }
+
+          output (fmt, i+1, state, k, sec);
+          g_free (sec);
+        }
+
+      g_free (fmt);
 
       output (PROMPT "\n" PROMPT "Select wifi [1-%d]:\n", i);
 
@@ -487,6 +552,7 @@ connect_cb (GObject *object, GAsyncResult *res, gpointer data)
   ConnmanData *d = data;
   GVariant    *var;
   GError      *error = NULL;
+  gboolean     quit = FALSE;
 
   if ((var = g_dbus_proxy_call_finish (G_DBUS_PROXY (object), res, &error)))
     g_variant_unref (var);
@@ -496,6 +562,7 @@ connect_cb (GObject *object, GAsyncResult *res, gpointer data)
       if (is_connman_error (error, "AlreadyConnected"))
         {
           output (PROMPT "Already connected.\n");
+          quit = TRUE;
         }
       else if (is_connman_error (error, "InProgress"))
         {
@@ -513,6 +580,9 @@ connect_cb (GObject *object, GAsyncResult *res, gpointer data)
 
       g_error_free (error);
     }
+
+  if (quit)
+    g_main_loop_quit (d->loop);
 }
 
 static void
@@ -575,13 +645,47 @@ connman_init (ConnmanData *d)
   mtn_connman_new (NULL, connman_new_cb, d);
 };
 
+static void
+connman_deinit (ConnmanData *d)
+{
+  GVariant *o;
+
+  if (!d->connman)
+    return;
+
+  if (d->service)
+    g_signal_handlers_disconnect_by_data (d->service, d);
+
+  o = g_variant_new ("(o)", "/org/GuacamayoProject/ConnmanAgent");
+
+  g_dbus_proxy_call_sync (G_DBUS_PROXY (d->connman), "UnregisterAgent", o,
+                          G_DBUS_CALL_FLAGS_NONE, 120000, NULL, NULL);
+
+  g_dbus_connection_unregister_object (d->connection, d->object_id);
+  g_bus_unown_name (d->name_id);
+
+  while (g_main_context_pending (g_main_loop_get_context (d->loop)))
+    g_main_context_iteration (g_main_loop_get_context (d->loop), FALSE);
+
+  if (d->service)
+    {
+      g_object_unref (d->service);
+      d->service = NULL;
+    }
+
+  g_hash_table_destroy (d->services);
+  d->services = NULL;
+
+  g_object_unref (d->connman);
+  d->connman = NULL;
+}
+
 gboolean
 setup_wifi (char *line)
 {
   gboolean retval = TRUE;
   ConnmanData *d = g_slice_new0 (ConnmanData);
   GMainLoop   *loop;
-  GVariant    *o;
 
   /*
    * The services hash is keyed by the service name (i.e., ssid) and holds
@@ -598,26 +702,9 @@ setup_wifi (char *line)
 
   g_main_loop_run (loop);
 
-  o = g_variant_new ("(o)", "/org/GuacamayoProject/ConnmanAgent");
-
-  g_dbus_proxy_call_sync (G_DBUS_PROXY (d->connman), "UnregisterAgent", o,
-                          G_DBUS_CALL_FLAGS_NONE, 120000, NULL, NULL);
-
-  g_dbus_connection_unregister_object (d->connection, d->object_id);
-  g_bus_unown_name (d->name_id);
-
-  g_object_unref (d->connman);
-
-  if (d->service)
-    g_object_unref (d->service);
-
-  g_hash_table_destroy (d->services);
-
-  while (g_main_context_pending (g_main_loop_get_context (d->loop)))
-    g_main_context_iteration (g_main_loop_get_context (d->loop), FALSE);
+  connman_deinit (d);
 
   g_main_loop_unref (d->loop);
-
   g_slice_free (ConnmanData, d);
 
   return retval;
