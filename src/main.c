@@ -81,9 +81,7 @@ static GuacaCmd cmds[] =
   {"?",        NULL,         "Print help message", print_help},
   {"help",     NULL,         "Print help message", print_help},
   {"hostname", "[new name]", "Get/set host name",  set_hostname},
-#ifdef DEBUG
   {"quit",     NULL,         "Quit",               NULL},
-#endif
   {"reboot",   NULL,         "Reboot",             shutdown},
   {"shutdown", NULL,         "Shutdown",           shutdown},
   {"timezone", NULL,         "Set timezone",       set_timezone},
@@ -117,6 +115,12 @@ print_help (char *line)
 
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
     {
+      /*
+       * Don't show the quit command if we are on a dedicated VT
+       */
+      if (out && !g_strcmp0 (cmds[i].cmd, "quit"))
+        continue;
+
       if (cmds[i].args)
         {
           char *t = g_strdup_printf ("%s %s", cmds[i].cmd, cmds[i].args);
@@ -167,10 +171,14 @@ parse_line (char *line)
 
   switch (*l)
     {
-#ifdef DEBUG
     case 'q':
+      if (out)
+        {
+          /* running on a dedicated VT; no quitting. */
+          output ("Sorry mate, can't let you do that.\n");
+          return FALSE;
+        }
       return TRUE;
-#endif
     case 0:
       /* print help on empty lines */
     case '?':
@@ -218,7 +226,9 @@ command_match (const char *text, int state)
     i = 0;
 
   for (; i < G_N_ELEMENTS (cmds); i++)
-    if (!strncmp (text, cmds[i].cmd, strlen (text)))
+    if (out && !g_strcmp0 (cmds[i].cmd, "quit"))
+      continue;
+    else if (!strncmp (text, cmds[i].cmd, strlen (text)))
       return strdup (cmds[i++].cmd);
 
   return NULL;
@@ -240,10 +250,19 @@ signal_handler (int sig)
 {
   switch (sig)
     {
-    case SIGINT:
-      return;
     default:
       break;
+
+    case SIGINT:
+      /*
+       * disable SIGINT if we are running on a dedicated VT, otherwise fall
+       * through
+       */
+      if (out)
+        {
+          output ("Sorry mate, can't let you do that.\n");
+          return;
+        }
 
     case SIGABRT:
     case SIGSEGV:
