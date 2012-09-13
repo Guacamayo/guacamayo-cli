@@ -691,7 +691,6 @@ setup_wifi (char *line)
 {
   gboolean retval = TRUE;
   ConnmanData *d = g_slice_new0 (ConnmanData);
-  GMainLoop   *loop;
 
   /*
    * The services hash is keyed by the service name (i.e., ssid) and holds
@@ -702,15 +701,14 @@ setup_wifi (char *line)
                                        NULL,
                                        (GDestroyNotify)g_hash_table_destroy);
 
-  d->loop = loop = g_main_loop_new (NULL, FALSE);
+  d->loop = get_main_loop ();
 
   connman_init (d);
 
-  g_main_loop_run (loop);
+  g_main_loop_run (d->loop);
 
   connman_deinit (d);
 
-  g_main_loop_unref (d->loop);
   g_slice_free (ConnmanData, d);
 
   return retval;

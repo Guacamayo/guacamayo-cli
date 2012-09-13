@@ -17,6 +17,9 @@
 #ifndef GUACA_MAIN_H
 #define GUACA_MAIN_H
 
-void output (const char *fmt, ...);
+#include <glib.h>
+
+GMainLoop *get_main_loop (void);
+void       output        (const char *fmt, ...);
 
 #endif

@@ -42,11 +42,12 @@
 #include "connman.h"
 #include "vtmanager.h"
 
-static FILE     *out = NULL;
-static FILE     *in  = NULL;
-static gboolean  print_help (char *line);
-static gboolean  shutdown (char *line);
-static char     *history_file = NULL;
+static FILE      *out = NULL;
+static FILE      *in  = NULL;
+static gboolean   print_help (char *line);
+static gboolean   shutdown (char *line);
+static char      *history_file = NULL;
+static GMainLoop *loop = NULL;
 
 typedef gboolean (*GuacaCmdFunc) (char *);
 
@@ -254,6 +255,9 @@ signal_handler (int sig)
       break;
 
     case SIGINT:
+      /* Terminate any subcommands using the glib main loop. */
+      g_main_loop_quit (loop);
+
       /*
        * disable SIGINT if we are running on a dedicated VT, otherwise fall
        * through
@@ -281,6 +285,12 @@ signal_handler (int sig)
     }
 
   exit (sig);
+}
+
+GMainLoop *
+get_main_loop (void)
+{
+  return loop;
 }
 
 int
@@ -336,6 +346,9 @@ main (int argc, char **argv)
       read_history (history_file);
     }
 
+  /* main loop for use in commnds */
+  loop = g_main_loop_new (NULL, FALSE);
+
   output ("Welcome to " GUACAMAYO_DISTRO_STRING "\n\n");
   print_help (NULL);
 
@@ -357,6 +370,8 @@ main (int argc, char **argv)
 
   if (in)
     fclose (in);
+
+  g_main_loop_unref (loop);
 
   vtmanager_deinit ();
 }
