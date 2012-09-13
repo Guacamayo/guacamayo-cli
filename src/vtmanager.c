@@ -42,13 +42,13 @@ static char *ttydev   = NULL;
 #define _XIOCTL_W(err0, fd, io ,args...)                        \
   if (ioctl (fd, io, args) < 0)                                 \
     {                                                           \
-      g_warning ("Failed to " err0 ":%s", strerror(errno));     \
+      g_debug ("Failed to " err0 ":%s", strerror(errno));       \
     }                                                           \
 
 #define _XIOCTL_F(err0, fd, io ,args...)                        \
   if (ioctl (fd, io, args) < 0)                                 \
     {                                                           \
-      g_warning ("Failed to " err0 ":%s", strerror (errno));    \
+      g_debug ("Failed to " err0 ":%s", strerror (errno));      \
       goto fail;                                                \
     }                                                           \
 
@@ -71,7 +71,7 @@ signal_handler (int id)
       _XIOCTL_W ("release VT", ttyX, VT_RELDISP, 1);
       break;
     default:
-      g_warning ("Got unknown signal %d", id);
+      g_debug ("Got unknown signal %d", id);
     }
 }
 
@@ -84,7 +84,7 @@ vtmanager_init (void)
 
   if ((tty0 = open ("/dev/tty0", O_WRONLY)) < 0)
     {
-      g_warning ("Failed to open tty0");
+      g_debug ("Failed to open tty0");
       goto fail;
     }
 
@@ -94,7 +94,7 @@ vtmanager_init (void)
   _XIOCTL_F ("locate free VT", tty0, VT_OPENQRY, &vt);
   if (vt < 0)
     {
-      g_warning ("Invalid VT number %d", vt);
+      g_debug ("Invalid VT number %d", vt);
       goto fail;
     }
 
@@ -106,7 +106,7 @@ vtmanager_init (void)
   ttydev = g_strdup_printf ("/dev/tty%d", vt);
   if ((ttyX = open (ttydev, O_RDWR|O_NONBLOCK)) < 0)
     {
-      g_warning ("Failed to open '%s': %s", ttydev, strerror (errno));
+      g_debug ("Failed to open '%s': %s", ttydev, strerror (errno));
       goto fail;
     }
   _XIOCTL_F ("change controlling tty", ttyX, TIOCSCTTY, 0);
@@ -119,13 +119,13 @@ vtmanager_init (void)
   sigemptyset (&sig.sa_mask);
   if (sigaction (SIGUSR1, &sig, NULL) < 0)
     {
-      g_warning ("Failed to install SIGUSR1 handler");
+      g_debug ("Failed to install SIGUSR1 handler");
       goto fail;
     }
 
   if (sigaction (SIGUSR2, &sig, NULL) < 0)
     {
-      g_warning ("Failed to install SIGUSR2 handler");
+      g_debug ("Failed to install SIGUSR2 handler");
       goto fail;
     }
 
@@ -175,16 +175,16 @@ vtmanager_deinit ()
   sigemptyset (&sig.sa_mask);
 
   if (sigaction (SIGUSR1, &sig, NULL) < 0)
-    g_warning ("Failed to remove SIGUSR1 handler");
+    g_debug ("Failed to remove SIGUSR1 handler");
 
   if (sigaction (SIGUSR2, &sig, NULL) < 0)
-    g_warning ("Failed to remove SIGUSR2 handler");
+    g_debug ("Failed to remove SIGUSR2 handler");
 
   close (ttyX);
   ttyX = -1;
 
   if ((tty0 = open ("/dev/tty0", O_WRONLY)) < 0)
-    g_warning ("Failed to open tty0");
+    g_debug ("Failed to open tty0");
   else
     {
       _XIOCTL_W ("disallocate", tty0, VT_DISALLOCATE, vt);
