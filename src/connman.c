@@ -249,6 +249,7 @@ register_agent_cb (GObject *object, GAsyncResult *res, gpointer data)
     {
       output (PROMPT "error: %s.", error->message);
       g_error_free (error);
+      g_main_loop_quit (d->loop);
       return;
     }
 
@@ -417,6 +418,7 @@ agent_bus_acquired (GObject      *source_object,
     {
       output (PROMPT "error: %s\n", error->message);
       g_error_free (error);
+      g_main_loop_quit (d->loop);
       return;
     }
   else
@@ -435,6 +437,7 @@ agent_bus_acquired (GObject      *source_object,
     {
       output ("failed: %s\n", error->message);
       g_error_free (error);
+      g_main_loop_quit (d->loop);
     }
   else if (d->connman && !d->agent_submitted)
     {
@@ -467,6 +470,8 @@ register_agent (ConnmanData *d)
     {
       g_warning ("Error %s", error->message);
       g_clear_error (&error);
+      g_main_loop_quit (d->loop);
+      return;
     }
 
   output (PROMPT "Connecting to DBus ... ");
@@ -485,6 +490,7 @@ connman_new_cb (GObject *object, GAsyncResult *res, gpointer data)
     {
       output (PROMPT "Connman proxy: %s\n", error->message);
       g_error_free (error);
+      g_main_loop_quit (d->loop);
       return;
     }
 
