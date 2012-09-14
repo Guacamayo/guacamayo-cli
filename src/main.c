@@ -44,10 +44,12 @@
 
 static FILE      *out = NULL;
 static FILE      *in  = NULL;
-static gboolean   print_help (char *line);
-static gboolean   shutdown (char *line);
 static char      *history_file = NULL;
 static GMainLoop *loop = NULL;
+
+static gboolean   print_help (char *line);
+static gboolean   print_version (char *line);
+static gboolean   shutdown (char *line);
 
 typedef gboolean (*GuacaCmdFunc) (char *);
 
@@ -66,12 +68,30 @@ output (const char *fmt, ...)
   va_end (args);
 }
 
+/*
+ * C_DEBUG:  only shown in help in debug build, but no restrictions on
+ *           availability per se.
+ *
+ * C_HIDDEN: never shown in help output
+ *
+ * C_SHELL:  in non-debug build only available if running under shell; in
+ *           debug build all commands are always available.
+ */
+enum
+{
+  C_NONE   = 0,
+  C_DEBUG  = 0x00000001,
+  C_HIDDEN = 0x00000002,
+  C_SHELL  = 0x00000004,
+};
+
 typedef struct
 {
   const char   *cmd;
   const char   *args;
   const char   *help;
   GuacaCmdFunc  func;
+  guint         flags;
 } GuacaCmd;
 
 /*
@@ -79,15 +99,58 @@ typedef struct
  */
 static GuacaCmd cmds[] =
 {
-  {"?",        NULL,         "Print help message", print_help},
-  {"help",     NULL,         "Print help message", print_help},
-  {"hostname", "[new name]", "Get/set host name",  set_hostname},
-  {"quit",     NULL,         "Quit",               NULL},
-  {"reboot",   NULL,         "Reboot",             shutdown},
-  {"shutdown", NULL,         "Shutdown",           shutdown},
-  {"timezone", NULL,         "Set timezone",       set_timezone},
-  {"wifi",     NULL,         "Connect to wifi",    setup_wifi},
+  {"?",        NULL,         "Print help message", print_help,   C_HIDDEN},
+  {"help",     NULL,         "Print help message", print_help,   C_NONE},
+  {"hostname", "[new name]", "Get/set host name",  set_hostname, C_NONE},
+  {"quit",     NULL,         "Quit",               NULL,         C_SHELL},
+  {"reboot",   NULL,         "Reboot",             shutdown,     C_NONE},
+  {"shutdown", NULL,         "Shutdown",           shutdown,     C_NONE},
+  {"timezone", NULL,         "Set timezone",       set_timezone, C_NONE},
+  {"version",  NULL,         "Guacamayo version",  print_version,C_NONE},
+  {"wifi",     NULL,         "Connect to wifi",    setup_wifi,   C_NONE},
 };
+
+static gboolean
+is_cmd_available (guint flags)
+{
+  gboolean visible;
+
+  /* In debug mode all commands are available */
+#ifdef DEBUG
+  return TRUE;
+#endif
+
+  /* Commands with the SHELL flag are visible if we are in a shell */
+  return (!out || (flags & C_SHELL));
+}
+
+static gboolean
+is_cmd_visible (guint flags)
+{
+  gboolean visible;
+
+  /* Hidden commands are never visible. */
+  if ((flags & C_HIDDEN))
+    return FALSE;
+
+  /* debug commands are only visible in debug mode */
+#ifndef DEBUG
+  if ((flags & C_DEBUG))
+    return FALSE;
+#endif
+
+  return is_cmd_available (flags);
+}
+
+static gboolean
+print_version (char *line)
+{
+#ifdef HAVE_GUACAMAYO_VERSION_H
+  output (GUACAMAYO_DISTRO_STRING "\n");
+#else
+  output ("Sorry mate, this ain't a Guacamayo build.\n");
+#endif
+}
 
 static gboolean
 print_help (char *line)
@@ -98,10 +161,14 @@ print_help (char *line)
 
   if (!max_len)
     {
-
       for (i = 0; i < G_N_ELEMENTS (cmds); i++)
         {
-          int len = strlen (cmds[i].cmd);
+          int len;
+
+          if (!is_cmd_visible (cmds[i].flags))
+            continue;
+
+          len = strlen (cmds[i].cmd);
 
           if (cmds[i].args)
             len += (strlen (cmds[i].args) + 1);
@@ -116,10 +183,7 @@ print_help (char *line)
 
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
     {
-      /*
-       * Don't show the quit command if we are on a dedicated VT
-       */
-      if (out && !g_strcmp0 (cmds[i].cmd, "quit"))
+      if (!is_cmd_visible (cmds[i].flags))
         continue;
 
       if (cmds[i].args)
@@ -172,14 +236,6 @@ parse_line (char *line)
 
   switch (*l)
     {
-    case 'q':
-      if (out)
-        {
-          /* running on a dedicated VT; no quitting. */
-          output ("Sorry mate, can't let you do that.\n");
-          return FALSE;
-        }
-      return TRUE;
     case 0:
       /* print help on empty lines */
     case '?':
@@ -196,7 +252,13 @@ parse_line (char *line)
   for (i = 0; i < G_N_ELEMENTS (cmds); i++)
     if (!strncmp (cmds[i].cmd, line, n))
       {
-        success = cmds[i].func (line);
+        if (!is_cmd_available (cmds[i].flags))
+          {
+            output ("Sorry mate, can't let you do that.\n");
+            success = FALSE;
+          }
+        else
+          success = cmds[i].func (line);
         break;
       }
 
@@ -349,7 +411,12 @@ main (int argc, char **argv)
   /* main loop for use in commnds */
   loop = g_main_loop_new (NULL, FALSE);
 
+#ifdef HAVE_GUACAMAYO_VERSION_H
   output ("Welcome to " GUACAMAYO_DISTRO_STRING "\n\n");
+#else
+  output ("\n\n");
+#endif
+
   print_help (NULL);
 
   while ((line = readline (": ")))
