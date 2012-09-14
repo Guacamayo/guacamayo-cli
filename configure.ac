@@ -51,11 +51,15 @@ fi
 
 CLI_LIBS="$CLI_LIBS -lreadline -lhistory"
 
+want_debug=no
 AC_ARG_ENABLE(debug, AS_HELP_STRING([--enable-debug],
                                    [Enable debuggin information]),
-              [D_CFLAGS="-g -O0 -DDEBUG"], [D_CFLAGS="-g -O2"])
+              [want_debug=$enableval], [want_debug=no])
 
-CLI_CFLAGS="$CLI_CFLAGS $D_CFLAGS"
+if test x$want_debug = xyes ; then
+   CLI_CFLAGS="$CLI_CFLAGS -g -O0"
+   AC_DEFINE([DEBUG], [1], [Debugging enabled])
+fi
 
 AC_SUBST(CLI_LIBS)
 AC_SUBST(CLI_CFLAGS)
