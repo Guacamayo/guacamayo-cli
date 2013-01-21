@@ -121,7 +121,10 @@ is_cmd_available (guint flags)
 #endif
 
   /* Commands with the SHELL flag are visible if we are in a shell */
-  return (!out || (flags & C_SHELL));
+  if ((flags & C_SHELL))
+    return !out;
+
+  return TRUE;
 }
 
 static gboolean
